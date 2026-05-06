@@ -126,6 +126,41 @@ def blend_lambda(lambda_model, lambda_market, alpha):
     return pd.Series(blended.ravel(), index=index, name="lambda_total_blend")
 
 
+def calibrate_df(
+    df,
+    *,
+    scale=1.0,
+    alpha=0.25,
+):
+    """
+    Run the full Over/Under calibration pipeline.
+    """
+
+    required = ["lambda_total", "odds_over", "odds_under"]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing columns: {missing}")
+
+    out = df.copy()
+    out["lambda_scaled"] = apply_global_lambda_scale(out["lambda_total"], scale)
+
+    market_probs = market_ou_probs(out["odds_over"], out["odds_under"])
+    out["p_over_market"] = market_probs["p_over"]
+    out["p_under_market"] = market_probs["p_under"]
+
+    out["lambda_market"] = infer_lambda_from_market(
+        out["p_over_market"],
+        out["p_under_market"],
+    )
+    out["lambda_calibrated"] = blend_lambda(
+        out["lambda_scaled"],
+        out["lambda_market"],
+        alpha,
+    )
+
+    return out
+
+
 def _coerce_ou_odds(odds_over, odds_under):
     if odds_under is None:
         odds = np.asarray(odds_over, dtype=float)
