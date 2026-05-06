@@ -98,6 +98,34 @@ def infer_lambda_from_market(
     return pd.Series(lambdas, index=index, name="lambda_total_market")
 
 
+def blend_lambda(lambda_model, lambda_market, alpha):
+    model = np.asarray(lambda_model, dtype=float)
+    market = np.asarray(lambda_market, dtype=float)
+    model, market = np.broadcast_arrays(model, market)
+
+    weight = float(np.clip(alpha, 0.0, 1.0))
+
+    blended = np.where(
+        np.isfinite(model) & np.isfinite(market),
+        (1.0 - weight) * model + weight * market,
+        np.where(np.isfinite(model), model, market)
+    )
+
+    blended = np.clip(blended, 0.5, 5.0)
+
+    if blended.size == 1:
+        return float(blended[0])
+
+    if isinstance(lambda_model, pd.Series):
+        index = lambda_model.index
+    elif isinstance(lambda_market, pd.Series):
+        index = lambda_market.index
+    else:
+        index = None
+
+    return pd.Series(blended.ravel(), index=index, name="lambda_total_blend")
+
+
 def _coerce_ou_odds(odds_over, odds_under):
     if odds_under is None:
         odds = np.asarray(odds_over, dtype=float)
