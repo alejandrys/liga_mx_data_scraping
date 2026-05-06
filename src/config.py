@@ -1,0 +1,5 @@
+ODDS_API_KEY = "d08dd3c8fb4cb84b4abc9f7290484c81"
+
+WINDOW = 10
+
+EDGE_MIN = 0.02
