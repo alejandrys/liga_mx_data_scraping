@@ -132,31 +132,43 @@ def calibrate_df(
     scale=1.0,
     alpha=0.25,
 ):
-    """
-    Run the full Over/Under calibration pipeline.
-    """
-
     required = ["lambda_total", "odds_over", "odds_under"]
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Missing columns: {missing}")
 
     out = df.copy()
-    out["lambda_scaled"] = apply_global_lambda_scale(out["lambda_total"], scale)
+    out = out.replace([np.inf, -np.inf], np.nan)
 
+    alpha = float(np.clip(alpha, 0.0, 1.0))
+
+    # --- Scaling ---
+    out["lambda_scaled"] = np.clip(
+        apply_global_lambda_scale(out["lambda_total"], scale),
+        0.5,
+        5.0
+    )
+
+    # --- Market probabilities ---
     market_probs = market_ou_probs(out["odds_over"], out["odds_under"])
     out["p_over_market"] = market_probs["p_over"]
-    out["p_under_market"] = market_probs["p_under"]
 
+    # --- Infer lambda ---
     out["lambda_market"] = infer_lambda_from_market(
-        out["p_over_market"],
-        out["p_under_market"],
+        out["p_over_market"]
     )
-    out["lambda_calibrated"] = blend_lambda(
+
+    # --- Blend ---
+    lambda_calibrated = blend_lambda(
         out["lambda_scaled"],
         out["lambda_market"],
         alpha,
     )
+
+    if isinstance(lambda_calibrated, pd.Series):
+        lambda_calibrated = lambda_calibrated.values
+
+    out["lambda_calibrated"] = lambda_calibrated
 
     return out
 
